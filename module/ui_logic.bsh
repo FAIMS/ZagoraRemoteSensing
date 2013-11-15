@@ -1,0 +1,307 @@
+/*** 'Editable' - you can edit the code below based on the needs ***/
+/*
+initStatic() {
+	setFieldValue("control/static/name", getModuleName());
+	setFieldValue("control/static/id", getModuleId());
+	setFieldValue("control/static/season", getModuleSeason());
+	setFieldValue("control/static/description", getProjectDescription());
+	setFieldValue("control/static/permit_no", getPermitNo());
+	setFieldValue("control/static/permit_holder", getPermitHolder());
+	setFieldValue("control/static/contact_address", getContactAndAddress());
+	setFieldValue("control/static/participants", getParticipants());
+	setFieldValue("control/static/permit_issued_by", getPermitIssuedBy());
+	setFieldValue("control/static/permit_type", getPermitType());
+	setFieldValue("control/static/copyright_holder", getCopyrightHolder());
+	setFieldValue("control/static/client_sponsor", getClientSponsor());
+	setFieldValue("control/static/land_owner", getLandOwner());
+	setFieldValue("control/static/has_sensitive_data", hasSensitiveData());
+}
+
+initStatic();
+*/
+
+showWarning("Thanks for trying this module!", "We have provided this module for Demonstration purposes only. You can customise the module yourself or we can help you. Contact info@fedarch.org for help.");
+
+
+/*** MAP ***/
+
+DATA_ENTRY_LAYER = "Data Entry Layer";
+DATA_ENTRY_LAYER_ID = 0;
+
+onToolEvent("control/map/map", "load", "onLoadData()");
+
+onLoadData() {
+	id = getMapGeometryLoaded();
+	is_entity = "entity".equals(getMapGeometryLoadedType());
+	
+	showToast("To load entity please use load tab");
+}
+
+onEvent("control/map/clear", "click", "onClearMap()");
+onEvent("control/map/create", "click", "onCreateMap()");
+
+onClearMap() {
+	clearGeometryList("control/map/map", getGeometryList("control/map/map", DATA_ENTRY_LAYER_ID));
+}
+
+onCreateMap() {
+	List geomList = getGeometryList("control/map/map", DATA_ENTRY_LAYER_ID);
+	if (geomList == null || geomList.size() == 0) {
+		showWarning("Logic Error", "No geometry found on data entry layer");
+	} else if (geomList.size() > 1) {
+		showWarning("Logic Error", "Multiple geometry found on data entry layer. Please clear data entry layer and try again");
+	} else {
+		Geometry geom = geomList.get(0);
+		/*if (geom instanceof Point) {
+			showTabGroup("createPoint");
+		} else if (geom instanceof Line) {
+			showTabGroup("createLine");
+		} else if (geom instanceof Polygon) {
+			showTabGroup("createPolygon");
+		}*/
+		newRSFeature();
+
+	}
+}
+
+getCreatedGeometry() {
+	return getGeometryList("control/map/map", DATA_ENTRY_LAYER_ID);
+}
+
+clearCreatedGeometry() {
+	onClearMap();
+}
+
+zoomGPS(){
+	Object position = getGPSPositionProjected();
+	Object projPosition = getGPSPositionProjected();
+	if (projPosition != null ){
+		Double latitude = projPosition.getLatitude();
+		Double longitude = projPosition.getLongitude();
+		showToast("Zooming to "+position.getLongitude()+", "+position.getLatitude());
+		setMapFocusPoint("control/map/map", longitude, latitude);
+	} else {
+		showToast("GPS Not initialized");
+	}
+
+}
+
+onEvent("control/map/zoomGPS", "click", "zoomGPS()");
+
+
+
+/*** FEATURE ***/
+
+refreshEntities() {
+	showToast("Fetching saved features...");
+	populateList("control/data/RS_FeatureList", fetchEntityList("RemoteSensingFeature"));
+}
+
+onEvent("control/data", "show", "refreshEntities()");
+
+String feature_id = null;
+
+newRSFeature(){
+	feature_id = null;
+	newTabGroup("RS_Feature");
+    
+    setFieldValue("RS_Feature/header11_58/TimeStamp", getCurrentTime());
+
+	populateCheckBoxGroup("RS_Feature/header11_58/FeatureSource", makeVocab("FeatureSource"));
+    populateRadioGroup("RS_Feature/header11_58/Feature_Source_Confidence", makeVocab("FeatureSourceConfidence"));
+    populateCheckBoxGroup("RS_Feature/header11_58/Feature_Type", makeVocab("FeatureType"));
+    populateRadioGroup("RS_Feature/header11_69/Feature_Accessibility", makeVocab("FeatureAccessibility"));
+    populateDropDown("RS_Feature/header11_69/Ground_Control", makeVocab("GroundControl"));
+    populateRadioGroup("RS_Feature/header11_69/GCRepeat", makeVocab("GCRepeat"));
+	populateDropDown("RS_Feature/header11_69/RS_Groundtruth_Result", makeVocab("RSGroundtruthResult"));
+    populateCheckBoxGroup("RS_Feature/header11_69/Feature_Actual_Cause", makeVocab("FeatureActualCause"));
+    populateCheckBoxGroup("RS_Feature/header11_69/RS_Feature_Period_s_", makeVocab("RSFeaturePeriod"));
+    populateDropDown("RS_Feature/header11_69/Best_image_algorithm", makeVocab("BestImageAlgorithm"));  
+}
+
+onEvent("RS_Feature/header11_70/Photo", "click", "attachPictureTo(\"RS_Feature/header11_70/PhotoGallery\")");
+
+saveFeature() {
+	if (isNull(getFieldValue("RS_Feature/header11_58/FeatureID"))) {
+		showWarning("Logic Error", "Cannot save record without id");
+		return;
+	}
+	
+	data = getCreatedGeometry();
+	if (!isNull(feature_id)) {
+		entity = fetchArchEnt(feature_id);
+		data = entity.getGeometryList();
+	}
+	
+	saveTabGroup("RS_Feature", feature_id, data, null, "feature_id = getLastSavedRecordId(); clearCreatedGeometry();");
+}
+
+deleteFeature(){
+	if (!isNull(feature_id)) {
+        showAlert("Confirm Deletion", "Press OK to Delete this Feature!", "reallyDeleteFeature()", "doNotDelete()");
+	}
+}
+
+reallyDeleteFeature(){
+    deleteArchEnt(feature_id);
+    cancelTabGroup("RS_Feature", false);
+}
+
+doNotDelete(){
+    showToast("Delete Cancelled.");
+}
+
+loadRSFeature() {
+	newRSFeature();
+	feature_id = getListItemValue();
+	if (isNull(feature_id)) return;
+
+	showTabGroup("RS_Feature", feature_id);
+}
+
+onEvent("RS_Feature/header11_70/Update", "click", "saveFeature()");
+onEvent("RS_Feature/header11_70/Delete", "click", "deleteFeature()");
+onEvent("control/data/RS_FeatureList", "click", "loadRSFeature()");
+
+onEvent("control/gps/connectexternal", "click", "startExternalGPS()");
+onEvent("control/gps/connectinternal", "click", "startInternalGPS()");
+
+/*** MISC ***/
+
+makeVocab(String attrib){
+    Object a = fetchAll("select vocabid, vocabname from vocabulary join attributekey using (attributeid) where attributename = '"+attrib+"' ");
+    return a;
+}
+
+/*** 'Uneditable' - you can edit the code below with extreme precaution ***/
+User user;
+
+initMap() {
+	setMapZoom("control/map/map", 19.0f);
+
+	showBaseMap("control/map/map", "Base Layer", "files/data/maps/Zag_rtpan5.TIF");
+	createCanvasLayer("control/map/map", "Non-saved sketch layer");
+
+    DATA_ENTRY_LAYER_ID = createCanvasLayer("control/map/map", DATA_ENTRY_LAYER);
+
+	isEntity = true;
+	queryName = "All entities";
+	querySQL = "SELECT uuid, aenttimestamp FROM latestNonDeletedArchEntIdentifiers";
+		
+	addDatabaseLayerQuery("control/map/map", queryName, querySQL);
+
+	addTrackLogLayerQuery("control/map/map", "track log entities", 
+		"SELECT uuid, max(aenttimestamp) as aenttimestamp\n" + 
+		" FROM archentity join aenttype using (aenttypeid)\n" +
+		" where archentity.deleted is null\n" + 
+		"   and lower(aenttypename) = lower('gps_track')\n" + 
+		" group by uuid\n" + 
+		" having max(aenttimestamp)");
+		
+	addSelectQueryBuilder("control/map/map", "Select entity by type", createQueryBuilder(
+		"select uuid\n" + 
+		"  from latestNonDeletedArchent\n" + 
+		"  JOIN latestNonDeletedAentValue using (uuid)\n" + 
+		"  join aenttype using (aenttypeid)\n" + 
+		"  LEFT OUTER JOIN vocabulary using (vocabid, attributeid) \n" + 
+		"  where lower(aenttypename) = lower(?) \n" + 
+		"   group by uuid").addParameter("Type", "RemoteSensingFeature"));
+		
+	//addLegacySelectQueryBuilder("control/map/map", "Select geometry by id", "files/data/maps/sydney.sqlite", "Geology100_Sydney", 
+	//	createLegacyQueryBuilder("Select PK_UID from Geology100_Sydney where PK_UID = ?").addParameter("ID", null));
+					
+	// define database layer styles for points, lines, polygons and text
+	ps = createPointStyle(10, Color.BLUE, 0.2f, 0.5f);
+	ls = createLineStyle(10, Color.GREEN, 0.05f, 0.3f, null);
+	pos = createPolygonStyle(10, Color.parseColor("#440000FF"), createLineStyle(10, Color.parseColor("#AA000000"), 0.01f, 0.3f, null));
+	ts = createTextStyle(10, Color.WHITE, 40, Typeface.SANS_SERIF);
+
+	showDatabaseLayer("control/map/map", "Saved Data Layer", isEntity, queryName, querySQL, ps, ls, pos, ts);
+}
+
+initMap();
+
+/*** TRACKLOG ***/
+
+setGPSUpdateInterval(4);
+
+onEvent("control/gps/startTimeLog", "click", "startTrackingGPS(\"time\", 10, \"saveTimeGPSTrack()\")");
+onEvent("control/gps/startDistanceLog", "click", "startTrackingGPS(\"distance\", 10, \"saveDistanceGPSTrack()\")");
+onEvent("control/gps/stopTrackLog", "click", "stopTrackingGPS()");
+
+saveTimeGPSTrack() {
+	List attributes = createAttributeList();
+	attributes.add(createEntityAttribute("gps_type", "time", null, null, null));
+	saveGPSTrack(attributes);
+}
+
+saveDistanceGPSTrack() {
+	List attributes = createAttributeList();
+	attributes.add(createEntityAttribute("gps_type", "distance", null, null, null));
+	saveGPSTrack(attributes);
+}
+
+saveGPSTrack(List attributes) {
+	position = getGPSPosition();
+	if (position == null) return;
+
+	//attributes.add(createEntityAttribute("gps_user", "" + user.getUserId(), null, null, null));
+	attributes.add(createEntityAttribute("gps_timestamp", "" + getCurrentTime(), null, null, null));
+	attributes.add(createEntityAttribute("gps_longitude", "" + position.getLongitude(), null, null, null));
+	attributes.add(createEntityAttribute("gps_latitude", "" + position.getLatitude(), null, null, null));
+	//attributes.add(createEntityAttribute("gps_heading", "" + getGPSHeading(), null, null, null));
+	attributes.add(createEntityAttribute("gps_accuracy", "" + getGPSEstimatedAccuracy(), null, null, null));
+	
+	positionProj = getGPSPositionProjected();
+	Point p = new Point(new MapPos(positionProj.getLongitude(), positionProj.getLatitude()), null, (PointStyle) null, null);
+	ArrayList l = new ArrayList();
+	l.add(p);
+	
+	saveArchEnt(null, "gps_track", l, attributes);
+}
+
+/*** USER ***/
+
+getDefaultUsersList() {
+	users = fetchAll("select userid, fname ||' ' || lname from user");
+	return users;
+}
+
+populateListForUsers(){
+    populateList("user/usertab/users", getDefaultUsersList());
+}
+
+populateListForUsers();
+
+String username = "";
+String device = "";
+
+login(){
+	Object userResult = fetchOne("select userid,fname,lname,email from user where userid='" + getListItemValue() + "';");
+	User user = new User(userResult.get(0),userResult.get(1),userResult.get(2),userResult.get(3));
+
+	setUser(user);
+	username = userResult.get(1) + " " + userResult.get(2);
+	showTabGroup("control");
+}
+
+onEvent("user/usertab/users", "click", "login()");
+
+/*** SYNC ***/
+
+onEvent("control/gps/startsync", "click", "startSync()");
+onEvent("control/gps/stopsync", "click", "stopSync()");
+
+setSyncMinInterval(10.0f);
+setSyncMaxInterval(20.0f);
+setSyncDelay(5.0f);
+
+startSync() {
+    setSyncEnabled(true);
+    setFileSyncEnabled(true);
+}
+
+stopSync() {
+    setSyncEnabled(false);
+    setFileSyncEnabled(false);
+}
